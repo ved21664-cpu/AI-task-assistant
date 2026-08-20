@@ -1,0 +1,396 @@
+openapi: 3.0.3
+
+info:
+  title: AI-Powered Task Assistant API
+  description: >
+    REST API for creating and managing tasks using natural-language input.
+    The API uses an LLM to convert natural-language task descriptions into
+    structured task objects.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+
+tags:
+  - name: Tasks
+    description: Create and manage tasks
+
+paths:
+
+  /tasks:
+    post:
+      tags:
+        - Tasks
+      summary: Create a task from natural-language input
+      description: >
+        Accepts a natural-language task description, uses the LLM to convert
+        the input into a structured task, validates the result, and stores
+        the task.
+      operationId: createTask
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRequest'
+            example:
+              input: "Submit my project report by Friday and make it high priority."
+
+      responses:
+        '201':
+          description: Task successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+              example:
+                id: 1
+                title: "Submit project report"
+                description: "Submit the project report"
+                priority: "high"
+                due_date: "2026-08-21"
+
+        '400':
+          description: Invalid request or invalid task data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                detail: "Invalid task input"
+
+        '422':
+          description: Request validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+              example:
+                detail:
+                  - loc:
+                      - body
+                      - input
+                    msg: "Field required"
+                    type: "missing"
+
+        '502':
+          description: LLM provider failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                detail: "Unable to process task using the LLM service"
+
+    get:
+      tags:
+        - Tasks
+      summary: Retrieve all tasks
+      description: Returns all tasks currently stored by the application.
+      operationId: getTasks
+
+      responses:
+        '200':
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Task'
+              example:
+                - id: 1
+                  title: "Submit project report"
+                  description: "Submit the project report"
+                  priority: "high"
+                  due_date: "2026-08-21"
+                - id: 2
+                  title: "Buy groceries"
+                  description: "Buy groceries"
+                  priority: "medium"
+                  due_date: null
+
+  /tasks/{task_id}:
+    parameters:
+      - name: task_id
+        in: path
+        required: true
+        description: Unique identifier of the task
+        schema:
+          type: integer
+          minimum: 1
+        example: 1
+
+    get:
+      tags:
+        - Tasks
+      summary: Retrieve a task by ID
+      description: Returns a single task using its unique task ID.
+      operationId: getTask
+
+      responses:
+        '200':
+          description: Task found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+              example:
+                id: 1
+                title: "Submit project report"
+                description: "Submit the project report"
+                priority: "high"
+                due_date: "2026-08-21"
+
+        '404':
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                detail: "Task with id 1 not found"
+
+        '422':
+          description: Invalid path parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+              example:
+                detail:
+                  - loc:
+                      - path
+                      - task_id
+                    msg: "Input should be greater than or equal to 1"
+                    type: "greater_than_equal"
+
+    put:
+      tags:
+        - Tasks
+      summary: Update a task
+      description: Updates an existing task using structured task data.
+      operationId: updateTask
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTaskRequest'
+            example:
+              title: "Submit final project report"
+              description: "Submit the completed project report"
+              priority: "high"
+              due_date: "2026-08-22"
+
+      responses:
+        '200':
+          description: Task successfully updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+              example:
+                id: 1
+                title: "Submit final project report"
+                description: "Submit the completed project report"
+                priority: "high"
+                due_date: "2026-08-22"
+
+        '404':
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                detail: "Task with id 1 not found"
+
+        '422':
+          description: Request or path parameter validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+              example:
+                detail:
+                  - loc:
+                      - body
+                      - priority
+                    msg: "Input should be 'low', 'medium' or 'high'"
+                    type: "enum"
+
+    delete:
+      tags:
+        - Tasks
+      summary: Delete a task
+      description: Deletes an existing task using its unique task ID.
+      operationId: deleteTask
+
+      responses:
+        '204':
+          description: Task successfully deleted
+
+        '404':
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                detail: "Task with id 1 not found"
+
+        '422':
+          description: Invalid path parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+              example:
+                detail:
+                  - loc:
+                      - path
+                      - task_id
+                    msg: "Input should be greater than or equal to 1"
+                    type: "greater_than_equal"
+
+
+components:
+
+  schemas:
+
+    CreateTaskRequest:
+      type: object
+      required:
+        - input
+      properties:
+        input:
+          type: string
+          minLength: 1
+          description: Natural-language description of the task
+          example: "Submit my project report by Friday and make it high priority."
+
+    UpdateTaskRequest:
+      type: object
+      required:
+        - title
+        - description
+        - priority
+      properties:
+        title:
+          type: string
+          minLength: 1
+          description: Task title
+          example: "Submit final project report"
+
+        description:
+          type: string
+          minLength: 1
+          description: Task description
+          example: "Submit the completed project report"
+
+        priority:
+          type: string
+          enum:
+            - low
+            - medium
+            - high
+          description: Task priority
+          example: high
+
+        due_date:
+          type: string
+          format: date
+          nullable: true
+          description: Task due date. May be null when no deadline exists.
+          example: "2026-08-22"
+
+    Task:
+      type: object
+      required:
+        - id
+        - title
+        - description
+        - priority
+        - due_date
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          description: Unique task identifier
+          example: 1
+
+        title:
+          type: string
+          description: Task title
+          example: "Submit project report"
+
+        description:
+          type: string
+          description: Task description
+          example: "Submit the project report"
+
+        priority:
+          type: string
+          enum:
+            - low
+            - medium
+            - high
+          description: Task priority
+          example: high
+
+        due_date:
+          type: string
+          format: date
+          nullable: true
+          description: Task due date
+          example: "2026-08-21"
+
+    ErrorResponse:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+          description: Human-readable description of the error
+          example: "Task with id 999 not found"
+
+    ValidationError:
+      type: object
+      required:
+        - loc
+        - msg
+        - type
+      properties:
+        loc:
+          type: array
+          items:
+            type: string
+          description: Location of the validation error
+          example:
+            - body
+            - priority
+
+        msg:
+          type: string
+          description: Validation error message
+          example: "Input should be 'low', 'medium' or 'high'"
+
+        type:
+          type: string
+          description: Type of validation error
+          example: "enum"
+
+    ValidationErrorResponse:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationError'
